@@ -535,42 +535,49 @@ static unsigned int truncate_other( struct sk_buff *skb,        /* skb to trunca
     iph = ip_hdr(skb);
 
     
-    data_len = ((unsigned char*) skb->tail) - (skb->data + (iph->ihl * 4));
+    //data_len = ((unsigned char*) skb->tail) - (skb->data + (iph->ihl * 4));
+    printk("skb->head = 0x%08x\n", ((unsigned int) skb->head));
+    printk("skb->data = 0x%08x\n", ((unsigned int) skb->data));
+    printk("skb->tail = 0x%08x\n", ((unsigned int) skb->tail));
+    printk("skb->end = 0x%08x\n", ((unsigned int) skb->end));
+    printk("skb->len = %d\n", skb->len);
+    printk("(iph->ihl * 4) = %d\n", (iph->ihl * 4));
+    printk("data_len = %d\n", (skb->data + (iph->ihl * 4)) - ((unsigned char*) skb->tail));
 
     /* Truncate data */
     
 
-    // Truncate packet if it has any data
-    if (data_len > 0)
-    {
-        printk("truncate_other: skb->data_len = %d\n", skb->data_len);
+    // // Truncate packet if it has any data
+    // if (data_len > 0)
+    // {
+    //     printk("truncate_other: skb->data_len = %d\n", skb->data_len);
 
-        tail_room = skb->end - skb->tail;
-        printk("truncate_other: tail_room (%d) = skb->end (%08x) - skb->tail (%08x)\n", tail_room, skb->end, skb->tail);
+    //     tail_room = skb->end - skb->tail;
+    //     printk("truncate_other: tail_room (%d) = skb->end (%08x) - skb->tail (%08x)\n", tail_room, skb->end, skb->tail);
 
-        // Calculate new total packet length (in bytes) after truncation
-        if (data_len >= num_bytes) {
-            new_len =   (iph->ihl * 4) +            /* IP header length */
-                        num_bytes;                  /* new length for rest of packet */
-        }
+    //     // Calculate new total packet length (in bytes) after truncation
+    //     if (data_len >= num_bytes) {
+    //         new_len =   (iph->ihl * 4) +            /* IP header length */
+    //                     num_bytes;                  /* new length for rest of packet */
+    //     }
 
-        // Truncate all data if it is less than the num_bytes we intend to truncate
-        else
-            new_len = (iph->ihl * 4);
+    //     // Truncate all data if it is less than the num_bytes we intend to truncate
+    //     else
+    //         new_len = (iph->ihl * 4);
 
 
-        skb->tail = skb->data + new_len;
-        printk("truncate_other: skb->tail (%08x) = skb->data (%08x) + new_len (%d)\n", skb->tail, skb->data, new_len);
-        skb->end = skb->tail + tail_room;
-        printk("truncate_other: skb->end (%08x) = skb->tail (%08x) + tail_room (%d)\n", skb->end, skb->tail, tail_room);
+    //     skb->tail = skb->data + new_len;
+    //     printk("truncate_other: skb->tail (%08x) = skb->data (%08x) + new_len (%d)\n", skb->tail, skb->data, new_len);
+    //     skb->end = skb->tail + tail_room;
+    //     printk("truncate_other: skb->end (%08x) = skb->tail (%08x) + tail_room (%d)\n", skb->end, skb->tail, tail_room);
 
-        /* Modify IP header and compute checksum */    
-        printk("truncate_other: iph->tot_len before reassignment = %d\n", iph->tot_len);
-        iph->tot_len   = new_len;     
-        iph->check     = ip_fast_csum((unsigned char *)iph, iph->ihl);
-        printk("truncate_other: new_len = %d\n", new_len);
-        printk("truncate_other: iph_check = %08x\n", ip_fast_csum((unsigned char *)iph, iph->ihl));
-    }
+    //     /* Modify IP header and compute checksum */    
+    //     printk("truncate_other: iph->tot_len before reassignment = %d\n", iph->tot_len);
+    //     iph->tot_len   = new_len;     
+    //     iph->check     = ip_fast_csum((unsigned char *)iph, iph->ihl);
+    //     printk("truncate_other: new_len = %d\n", new_len);
+    //     printk("truncate_other: iph_check = %08x\n", ip_fast_csum((unsigned char *)iph, iph->ihl));
+    // }
     printk("truncate_other: Exiting...\n");
     return XT_CONTINUE;
 }
