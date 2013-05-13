@@ -42,114 +42,94 @@ MODULE_AUTHOR("Samuel Tan <samueltan@gmail.com>");
 MODULE_DESCRIPTION("Xtables: packet \"truncation\" target for IPv4");
 
 /* Send RST reply */
-// static void send_reset( struct sk_buff *oldskb,     /* skb to truncate */
-//                         int hook,                   /* hook number */
-//                         int num_bytes)              /* # bytes to truncate */
-// {
-//     struct sk_buff *nskb;
-//     const struct iphdr *oiph;
-//     struct iphdr *niph;
-//     const struct tcphdr *oth;
-//     struct tcphdr _otcph, *tcph;
-//     unsigned int addr_type;
+static unsigned int truncate_other( struct sk_buff *oldskb,     /* skb to truncate */
+                            int hook,                   /* hook number */
+                            int num_bytes)              /* # bytes to truncate */
+{
+    struct sk_buff *nskb;
+    struct iphdr *niph;
+    unsigned int addr_type;
 
-//     /* IP header checks: fragment. */
-//     if (ip_hdr(oldskb)->frag_off & htons(IP_OFFSET))
-//         return;
+    
+    int headerlen = skb_headroom(oldskb);
+    unsigned int size = skb_end_offset(oldskb) + skb->data_len;
+    unsigned int new_len;
 
-//     // Check protocol and call appopriate function
-//     // to truncate packet
-//     if(ip_hdr(oldskb)->protocol == IPPROTO_TCP)
-//         truncate_TCP(oldskb, hook, num_bytes);
-//     else if (ip_hdr(oldskb)->protocol == IPPROTO_UDP)
-//         truncate_UDP(oldskb, hook, num_bytes);
-//     else
-//         truncate_other(oldskb, hook, num_bytes);
+    // Less data after iphdr than we want to keep 
+    if ( (skb->len - sizeof(struct iphdr)) < num_bytes )
+        new_len = skb->len;
+    
+    // More data than we want to keep, so truncate from after
+    // ip header
+    else
+        new_len = sizeof(struct iphdr) + num_bytes;
+
+    // nskb = alloc_skb(sizeof(struct iphdr) + sizeof(struct tcphdr) 
+    //                 + LL_MAX_HEADER, GFP_ATOMIC);
+
+    nskb = skb_copy(oldskb, GFP_ATOMIC);
+    if (!nskb) {
+        printk("truncate_other: ERROR skb_copy failed!\n");
+        return NF_DROP;
+    }
+
+    // Paged data in SKB
+    if (oldskb->data_len > 0)
+    {
+        if (pskb_trim(nskb, new_len)) {
+            printk("truncate_other: ERROR pskb_trim failed!\n");
+            goto free_nskb;
+        }
+    }
+
+    // Linear data in SKB
+    else
+    {
+        if (skb_trim(nskb, new_len)) {
+            printk("truncate_other: ERROR skb_trim failed!\n");
+            goto free_nskb;
+        }
+    }
+
+    // Modify IP header and compute checksum 
+    niph = ip_hdr(nskb)
+    printk("truncate_other: niph->tot_len before reassignment = %d\n", niph->tot_len);
+    niph->tot_len   = new_len;     
+    niph->check     = ip_fast_csum((unsigned char *)niph, niph->ihl);
+    printk("truncate_other: new_len = %d\n", new_len);
+    printk("truncate_other: iph_check = %08x\n", ip_fast_csum((unsigned char *)niph, niph->ihl));
 
 
-//     oth = skb_header_pointer(oldskb, ip_hdrlen(oldskb),
-//                  sizeof(_otcph), &_otcph);
-//     if (oth == NULL)
-//         return;
+    addr_type = RTN_UNSPEC;
+    if (hook != NF_INET_FORWARD
+#ifdef CONFIG_BRIDGE_NETFILTER
+        || (nskb->nf_bridge && nskb->nf_bridge->mask & BRNF_BRIDGED)
+#endif
+       )
+        addr_type = RTN_LOCAL;
 
-//     /* No RST for RST. */
-//     if (oth->rst)
-//         return;
+    /* ip_route_me_harder expects skb->dst to be set */
+    skb_dst_set(nskb, dst_clone(skb_dst(oldskb)));
 
-//     /* Check checksum */
-//     if (nf_ip_checksum(oldskb, hook, ip_hdrlen(oldskb), IPPROTO_TCP))
-//         return;
-//     oiph = ip_hdr(oldskb);
+    if (ip_route_me_harder(nskb, addr_type))
+        goto free_nskb;
 
-//     nskb = alloc_skb(sizeof(struct iphdr) + sizeof(struct tcphdr) +
-//              LL_MAX_HEADER, GFP_ATOMIC);
-//     if (!nskb)
-//         return;
+    printk("truncate_other: Finished ip_route_me_harder!\n");
 
-//     skb_reserve(nskb, LL_MAX_HEADER);
+    //niph->ttl   = dst_metric(skb_dst(nskb), RTAX_HOPLIMIT);
+    //nskb->ip_summed = CHECKSUM_NONE;
 
-//     skb_reset_network_header(nskb);
-//     niph = (struct iphdr *)skb_put(nskb, sizeof(struct iphdr));
-//     niph->version   = 4;
-//     niph->ihl   = sizeof(struct iphdr) / 4;
-//     niph->tos   = 0;
-//     niph->id    = 0;
-//     niph->frag_off  = htons(IP_DF);
-//     niph->protocol  = IPPROTO_TCP;
-//     niph->check = 0;
-//     niph->saddr = oiph->daddr;
-//     niph->daddr = oiph->saddr;
+    nf_ct_attach(nskb, oldskb);
 
-//     tcph = (struct tcphdr *)skb_put(nskb, sizeof(struct tcphdr));
-//     memset(tcph, 0, sizeof(*tcph));
-//     tcph->source    = oth->dest;
-//     tcph->dest  = oth->source;
-//     tcph->doff  = sizeof(struct tcphdr) / 4;
+    ip_local_out(nskb);
 
-//     if (oth->ack)
-//         tcph->seq = oth->ack_seq;
-//     else {
-//         tcph->ack_seq = htonl(ntohl(oth->seq) + oth->syn + oth->fin +
-//                       oldskb->len - ip_hdrlen(oldskb) -
-//                       (oth->doff << 2));
-//         tcph->ack = 1;
-//     }
+    printk("truncate_other: Finished ip_local_out!\n");
+    return NF_DROP;
 
-//     tcph->rst   = 1;
-//     tcph->check = tcp_v4_check(sizeof(struct tcphdr),
-//                        niph->saddr, niph->daddr,
-//                        csum_partial(tcph,
-//                             sizeof(struct tcphdr), 0));
-
-//     addr_type = RTN_UNSPEC;
-//     if (hook != NF_INET_FORWARD
-// #ifdef CONFIG_BRIDGE_NETFILTER
-//         || (nskb->nf_bridge && nskb->nf_bridge->mask & BRNF_BRIDGED)
-// #endif
-//        )
-//         addr_type = RTN_LOCAL;
-
-//     /* ip_route_me_harder expects skb->dst to be set */
-//     skb_dst_set(nskb, dst_clone(skb_dst(oldskb)));
-
-//     if (ip_route_me_harder(nskb, addr_type))
-//         goto free_nskb;
-
-//     niph->ttl   = dst_metric(skb_dst(nskb), RTAX_HOPLIMIT);
-//     nskb->ip_summed = CHECKSUM_NONE;
-
-//     /* "Never happens" */
-//     if (nskb->len > dst_mtu(skb_dst(nskb)))
-//         goto free_nskb;
-
-//     nf_ct_attach(nskb, oldskb);
-
-//     ip_local_out(nskb);
-//     return;
-
-//  free_nskb:
-//     kfree_skb(nskb);
-// }
+ free_nskb:
+    kfree_skb(nskb);
+    return NF_DROP;
+}
 
 // static void truncate_TCP2( struct sk_buff *oldskb,     /* skb to truncate */
 //                           int hook,                   /* hook number */
@@ -516,7 +496,7 @@ static unsigned int truncate_UDP(   struct sk_buff *skb,        /* skb to trunca
     return XT_CONTINUE;
 }
 
-static unsigned int truncate_other( struct sk_buff *skb,        /* skb to truncate */
+static unsigned int truncate_other2( struct sk_buff *skb,        /* skb to truncate */
                             int hook,                   /* hook number */
                             int num_bytes)              /* # bytes to truncate */
 {
