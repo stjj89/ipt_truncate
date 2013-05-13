@@ -1,0 +1,1 @@
+cmd_/home/stjj89/ipt_truncate/ipt_TRUNCATE.ko := ld -r -m elf_x86_64 -T /usr/src/linux-headers-2.6.32-5-common/scripts/module-common.lds --build-id -o /home/stjj89/ipt_truncate/ipt_TRUNCATE.ko /home/stjj89/ipt_truncate/ipt_TRUNCATE.o /home/stjj89/ipt_truncate/ipt_TRUNCATE.mod.o

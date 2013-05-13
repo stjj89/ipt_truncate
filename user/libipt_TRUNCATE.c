@@ -38,7 +38,7 @@ static void TRUNCATE_init(struct xt_entry_target *t)
 
     /* default */
     truncate->drop_tcp_opts = 1; /* false, i.e. keep TCP options by default */
-    truncate->at_byte = 10;
+    truncate->at_byte = 30;
 }
 
 // WORK IN PROGRESS
