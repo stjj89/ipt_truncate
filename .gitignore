@@ -10,8 +10,17 @@
 *.so
 *.so.*
 *.dylib
+*.ko
 
 # Executables
 *.exe
 *.out
 *.app
+
+# Misc
+*.symvers
+*.order
+*.mod.c
+*cmd
+assignment.txt
+*~

@@ -27,8 +27,8 @@ static void TRUNCATE_help(void)
 }
 
 static const struct option TRUNCATE_opts[] = {
-    { "at-byte", 1, NULL, '1' },
-    { "drop-tcp-opts", 0, NULL, '2' },
+    { "at-byte",        1, NULL, '1' },
+    { "drop-tcp-opts",  0, NULL, '2' },
     { .name = NULL }
 };
 
@@ -36,9 +36,14 @@ static void TRUNCATE_init(struct xt_entry_target *t)
 {
     struct ipt_truncate_info *truncate = (struct ipt_truncate_info *)t->data;
 
-    /* default */
-    truncate->drop_tcp_opts = 1; /* false, i.e. keep TCP options by default */
-    truncate->at_byte = 30;
+    truncate->drop_tcp_opts = 0; /* false, i.e. try to keep TCP options by default */
+
+    // If this value is not set by a user-passed argument, truncate_tg_check()
+    // will not allow the rule to be added, so user is forced to provide 
+    // at-byte argument. This is a hack since I don't know how else to force
+    // user to pass at-byte argument and don't want to use a default value
+    truncate->at_byte = -1;      
+    
 }
 
 // WORK IN PROGRESS
@@ -47,7 +52,7 @@ static int TRUNCATE_parse(int c, char **argv, int invert, unsigned int *flags,
 {
     struct ipt_truncate_info *truncate = (struct ipt_truncate_info *)(*target)->data;
     unsigned int val;
-    
+
     switch(c) {
     case '1':
         if (!xtables_strtoui(optarg, NULL, &val, 0, UINT32_MAX))
@@ -56,12 +61,12 @@ static int TRUNCATE_parse(int c, char **argv, int invert, unsigned int *flags,
         if (val < 0)
             xtables_error(PARAMETER_PROBLEM,
                    "Argument passed to --at_byte cannot be negative");
-
         truncate->at_byte = val;
+        return 1;
         
     case '2':
         truncate->drop_tcp_opts = 1; /* true, i.e. drop TCP options */
-        
+        return 1;
         
     default:
         /* Fall through */
@@ -104,6 +109,7 @@ static struct xtables_target truncate_tg_reg = {
     .parse              = TRUNCATE_parse,
     .print              = TRUNCATE_print,
     .save               = TRUNCATE_save,
+    .extra_opts         = TRUNCATE_opts,
 };
 
 void _init(void)
