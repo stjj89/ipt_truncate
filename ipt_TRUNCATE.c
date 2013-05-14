@@ -67,11 +67,6 @@ static unsigned int truncate_TCP(   struct sk_buff *skb,     /* skb to truncate 
         return NF_DROP;   
     }
 
-    /* Check checksum */
-    if (nf_ip_checksum(skb, hook, ip_hdrlen(skb), IPPROTO_TCP))
-        return NF_DROP;
-    iph = ip_hdr(skb);
-
     
     /* Drop TCP options, truncate data only */
     if (drop_tcp_opts)
@@ -81,18 +76,14 @@ static unsigned int truncate_TCP(   struct sk_buff *skb,     /* skb to truncate 
                     sizeof(struct tcphdr) +     /* TCP header length w/o opts (20) */
                     num_bytes;                  /* new data length */
 
-        // Truncate packet
-        tail_room = skb->end - skb->tail;
-        skb->tail = skb->data + num_bytes;
-        skb->end = skb->tail + tail_room;
+        tcph->doff = sizeof(struct tcphdr) / 4;
     }
     
     /* Keep TCP options that are alinged and not truncated */
     else if ( ((tcph->doff << 2) - sizeof(struct tcphdr)) > num_bytes)
     {
         // Check options for handling alignment
-
-        tcp_opts = tcph + sizeof(struct tcphdr);
+        tcp_opts = (unsigned char *)tcph + sizeof(struct tcphdr);
 
         curr_opt = tcp_opts;
         last_opt = curr_opt;
@@ -116,14 +107,18 @@ static unsigned int truncate_TCP(   struct sk_buff *skb,     /* skb to truncate 
             {
                 curr_opt++;
                 bytes_left--;
-                opt_len = (int) curr_opt; // potential casting problem (CHECK ABOVE TOO)
+                opt_len = (uint8_t) curr_opt; // potential casting problem (CHECK ABOVE TOO)
                 
                 // Cannot keep this option
                 if (bytes_left < opt_len)
                     break;
                 // Proceed to next option
                 else {
-                    curr_opt += opt_len;
+
+                    // Length field two octets of option-kind and option-length as
+                    // well as the option-data octets, so minus one to account for
+                    // option-kind octet we already passed
+                    curr_opt += opt_len - 1;
                     last_opt = curr_opt;
                     bytes_left -= opt_len;
                 }
@@ -143,9 +138,14 @@ static unsigned int truncate_TCP(   struct sk_buff *skb,     /* skb to truncate 
                     sizeof(struct tcphdr) +     /* TCP header length w/o options (20) */
                     (last_opt - tcp_opts);      /* Length of options kept */
 
-
-        // Set tcph->doff to reflect truncation
+        // Set tcp header length
+        if (((sizeof(struct tcphdr) + (last_opt - tcp_opts)) % 4) != 0) {
+            printk("truncate_TCP: ERROR (sizeof(struct tcphdr) + (last_opt - tcp_opts)) = %d, not divisible by 4\n", 
+                (sizeof(struct tcphdr) + (last_opt - tcp_opts)));
+            return NF_DROP;
+        }
         tcph->doff = (sizeof(struct tcphdr) + (last_opt - tcp_opts)) / 4;
+
     }
 
     /* Keep all TCP Options, truncate only data */
@@ -153,37 +153,43 @@ static unsigned int truncate_TCP(   struct sk_buff *skb,     /* skb to truncate 
     {
         // Calculate new total packet length (in bytes) after truncation
         new_len =   (iph->ihl * 4) +            /* IP header length */
-                    (tcph->doff << 2) +         /* TCP header length w/o opts (20) */
                     num_bytes;                  /* new data length */
 
-        // Truncate packet
-        printk("CHECK THIS OUT\n");
-        tail_room = skb->end - skb->tail;
-        skb->tail = skb->data + num_bytes;
-        skb->end = skb->tail + tail_room;
     }
 
-    /* Modify IP header and compute checksum */    
-    iph->tot_len   = new_len;     
+    // Paged data in SKB
+    if (skb->data_len > 0)
+    {
+        err = pskb_trim(skb, new_len);
+        if (err) {
+            printk("truncate_UDP: ERROR pskb_trim failed!\n");
+            return NF_DROP;
+        }
+
+        // printk("truncate_other: Exiting after pskb_trim...\n");
+        // kfree_skb(nskb);
+        // return NF_DROP;
+    }
+
+    // Linear data in SKB
+    else
+    {
+        skb_trim(skb, new_len);
+        // err = skb_trim(nskb, new_len);
+        //if (err) {
+        //    printk("truncate_UDP: ERROR skb_trim failed!\n");
+        //    goto free_nskb;
+        //}
+    }
+
+    /* Modify IP header and compute checksum */
+    iph = ip_hdr(skb);
+    iph->tot_len   = htons(new_len);     
     iph->check     = ip_fast_csum((unsigned char *)iph, iph->ihl);
 
-    /* Modify TCP header */
-
-    
-    /*
-    // Creating Ack sequence if it is not ack?
-    if (tcph->ack)
-        tcph->seq = tcph->ack_seq;
-    else {
-        tcph->ack_seq = htonl(ntohl(tcph->seq) + tcph->syn + tcph->fin +
-                      skb->len - ip_hdrlen(skb) -
-                      (tcph->doff << 2));
-        tcph->ack = 1;
-    }
-    */
 
     /* Recompute checksum for TCP header */
-    iph->check = tcp_v4_check(sizeof(struct tcphdr),
+    tcph->check = tcp_v4_check(sizeof(struct tcphdr),
                        iph->saddr, iph->daddr,
                        csum_partial(tcph,
                             sizeof(struct tcphdr), 0));
