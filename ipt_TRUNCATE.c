@@ -194,10 +194,14 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
 
 
     /* Recompute checksum for TCP header */
-    tcph->check = tcp_v4_check(sizeof(struct tcphdr),
-                       iph->saddr, iph->daddr,
-                       csum_partial(tcph,
-                            sizeof(struct tcphdr), 0));
+    //tcph->check = tcp_v4_check(sizeof(struct tcphdr),
+    //                   iph->saddr, iph->daddr,
+    //                   csum_partial(tcph,
+    //                        sizeof(struct tcphdr), 0));
+    tcph->check = tcp_v4_check(skb->len, iph->saddr, iph->daddr, 
+                                csum_partial(tcph,
+                                (th->doff << 2), 
+                                skb->csum));
 
     printk("truncate_TCP: Exiting...\n");
     return XT_CONTINUE;
