@@ -58,6 +58,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
     int bytes_left;
     int new_len;                    /* new total packet length in bytes */
     int err;
+    unsigned char last_char;
 
     iph = ip_hdr(skb);
 
@@ -166,6 +167,8 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
 
     }
 
+    last_char = *(skb->data + (skb->len - 1));
+
     // Paged data in SKB
     if (skb->data_len > 0)
     {
@@ -188,20 +191,33 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
         //}
     }
 
+    // If this packet ends in a newline, truncated packet must too
+    // TODO: THIS DOESN'T WORK, TCP PROTOCOL KEEPS GOING
+    if (last_char == 0x0a)
+        *(skb->data + (skb->len - 1)) = 0x0a;
+
+    //printk("Last data character: 0x%x, skb->len = %d\n", *(skb->data + (skb->len - 1)), skb->len );
+
     /* Modify IP header and compute checksum */
     iph->tot_len   = htons(new_len);     
     ip_send_check(iph);
 
+    int datalen = skb->len - (iph->ihl << 2);
+    tcph->check = 0;
+    tcph->check = csum_tcpudp_magic(iph->saddr, iph->daddr,
+                      datalen, iph->protocol,
+                      csum_partial((char *)tcph, datalen, 0));
 
     /* Recompute checksum for TCP header */
-    //tcph->check = tcp_v4_check(sizeof(struct tcphdr),
+    // tcph->check = tcp_v4_check((tcph->doff << 2)/*sizeof(struct tcphdr)*/,
     //                   iph->saddr, iph->daddr,
     //                   csum_partial(tcph,
-    //                        sizeof(struct tcphdr), 0));
-    tcph->check = tcp_v4_check(skb->len, iph->saddr, iph->daddr, 
-                                csum_partial(tcph,
-                                (th->doff << 2), 
-                                skb->csum));
+    //                        (tcph->doff << 2), 0));
+    //tcph->check = 0;
+    // tcph->check = tcp_v4_check(skb->len, iph->saddr, iph->daddr, 
+    //                             csum_partial(tcph,
+    //                             (tcph->doff << 2), 
+    //                             skb->csum));
 
     printk("truncate_TCP: Exiting...\n");
     return XT_CONTINUE;
