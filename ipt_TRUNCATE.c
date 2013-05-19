@@ -55,6 +55,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
     unsigned char* last_opt;
     int opt_len;
     int bytes_left;
+    int kept_opts_len;
     int new_len;                    /* new total packet length in bytes */
     int old_user_data_len;
     int datalen;
@@ -134,6 +135,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
                 {
                     //printk("truncate_TCP: option 1 (NOP) detected\n");
                     curr_opt++;
+                    last_opt = curr_opt;
                     bytes_left--;
                 }
                 // OPT = Other option
@@ -170,16 +172,22 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
                     //printk("truncate_TCP: Invalid TCP Option detected\n");
                     return NF_DROP;
                 }
-
             }
+
+            kept_opts_len = (last_opt - tcp_opts);
+
+            // Kept options must be aligned on 32-bit (4-byte) boundary,
+            // so drop unaligned bytes we kept from the loop above
+            if (kept_opts_len % 4)
+                kept_opts_len = kept_opts_len - (kept_opts_len % 4);
 
             // Calculate new total packet length (in bytes) after truncation
             new_len =   (iph->ihl << 2) +           /* IP header length */
                         sizeof(struct tcphdr) +     /* TCP header length w/o options (20) */
-                        (last_opt - tcp_opts);      /* Length of options kept */
+                        kept_opts_len;              /* Length of options kept */
 
             // TCP header length modified, so adjust metadata accordingly
-            tcph->doff = (sizeof(struct tcphdr) + (last_opt - tcp_opts)) >> 2;
+            tcph->doff = (sizeof(struct tcphdr) + kept_opts_len) >> 2;
         }
 
         /* The number of bytes we want to keep exceeds the length of the
@@ -225,7 +233,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
     // have ip_summed = CHECKSUM_PARTIAL will get bad checksum on
     // WireShark. Why?
     skb->ip_summed = CHECKSUM_NONE;
-    printk("skb->ip_summed = 0x%x\n", skb->ip_summed);
+    //printk("skb->ip_summed = 0x%x\n", skb->ip_summed);
     //printk("truncate_TCP: Exiting...\n");
     return XT_CONTINUE;
 }
