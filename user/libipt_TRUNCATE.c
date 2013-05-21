@@ -20,9 +20,10 @@ static void TRUNCATE_help(void)
     printf(
 "TRUNCATE target options:\n"
 "--at-byte NUM              Truncate bytes after the NUM-th byte,\n"
-"                           counting from the end of the TCP/UDP header\n"
-"                           (or end of IP header for non-TCP/UDP protocol)\n"
-"--drop-tcp-opts            Drop optional TCP options\n");
+"                           counting from the end of the TCP/UDP header,\n"
+"                           or end of IP header for non-TCP/UDP protocol.\n"
+"                           (Note: for TCP, count starts after first 20 bytes of header)\n"
+"--drop-tcp-opts            Drop optional TCP options before truncation\n");
 
 
     printf("(*) See man page or read the INCOMPATIBILITES file for compatibility issues.\n");
@@ -48,7 +49,6 @@ static void TRUNCATE_init(struct xt_entry_target *t)
     
 }
 
-// WORK IN PROGRESS
 static int TRUNCATE_parse(int c, char **argv, int invert, unsigned int *flags,
                         const void *entry, struct xt_entry_target **target)
 {

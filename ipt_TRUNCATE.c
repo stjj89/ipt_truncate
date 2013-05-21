@@ -65,7 +65,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
     tcph = skb_header_pointer(skb, ip_hdrlen(skb),
                  sizeof(_tcph), &_tcph);
     if (tcph == NULL) {
-        //printk("ipt_TRUNCATE: TCP header not found\n");
+        printk("ipt_TRUNCATE: TCP header not found\n");
         return NF_DROP;   
     }
 
@@ -89,7 +89,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
                     old_user_data_len);
 
         /* Truncate SKB */
-        skb_trim(skb, new_len);
+        __pskb_trim(skb, new_len);
 
         // TCP header length modified, so adjust metadata accordingly
         tcph->doff = sizeof(struct tcphdr) >> 2;
@@ -203,7 +203,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
         }
 
         /* Truncate SKB */
-        skb_trim(skb, new_len);
+        __pskb_trim(skb, new_len);
     }
 
     /* Modify IP header and compute checksum */
@@ -242,7 +242,7 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
                                 int hook,                   /* hook number */
                                 int num_bytes)              /* # bytes to truncate */
 {
-    //printk("truncate_UDP: Entering...\n");
+    printk("truncate_UDP: Entering...\n");
     struct iphdr *iph;
     struct udphdr _udph, *udph;
     unsigned int new_len;                    /* new total packet length in bytes */
@@ -252,7 +252,7 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     udph = skb_header_pointer(skb, ip_hdrlen(skb),
                  sizeof(_udph), &_udph);
     if (udph == NULL) {
-        //printk("ipt_TRUNCATE: UDP header not found\n");
+        printk("ipt_TRUNCATE: UDP header not found\n");
         return NF_DROP;   
     }
 
@@ -266,9 +266,9 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     // udp header
     else
         new_len = (iph->ihl << 2) + sizeof(struct udphdr) + num_bytes;
-
+    
     /* Truncate SKB */
-    skb_trim(skb, new_len);
+    __pskb_trim(skb, new_len);
 
     /* Modify IP header and compute checksum */
     iph->tot_len   = htons(new_len);     
@@ -278,7 +278,7 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     udph->check = 0; // UDP Checksum optional for IPv4
     udph->len = htons(new_len - (iph->ihl << 2));
 
-    //printk("truncate_UDP: Exiting...\n");
+    printk("truncate_UDP: Exiting...\n");
     return XT_CONTINUE;
 }
 
@@ -304,7 +304,7 @@ static unsigned int truncate_other(struct sk_buff *skb,         /* skb to trunca
         new_len = (iph->ihl << 2) + num_bytes;
 
     /* Truncate SKB */
-    skb_trim(skb, new_len);
+    __pskb_trim(skb, new_len);
 
     /* Modify IP header and compute checksum */
     iph->tot_len   = htons(new_len);     
@@ -321,9 +321,9 @@ truncate_tg(struct sk_buff *skb, const struct xt_target_param *par)
     //printk("truncate_tg: Entering with iph->protocol = %x\n", iph->protocol);
     const struct ipt_truncate_info *truncate = par->targinfo;
 
-    if (iph->protocol == IPPROTO_TCP)
+    if (IPPROTO_TCP == iph->protocol)
         return truncate_TCP(skb, par->hooknum, truncate->at_byte, truncate->drop_tcp_opts);
-    else if (iph->protocol == IPPROTO_UDP)
+    else if (IPPROTO_UDP == iph->protocol)
         return truncate_UDP(skb, par->hooknum, truncate->at_byte);
     else
         return truncate_other(skb, par->hooknum, truncate->at_byte);    
@@ -348,9 +348,11 @@ static struct xt_target truncate_tg_reg __read_mostly = {
     .family     = NFPROTO_IPV4,
     .target     = truncate_tg,
     .targetsize = sizeof(struct ipt_truncate_info),
-    .table      = "filter",
-    .hooks      =   (1 << NF_INET_FORWARD) |
-                    (1 << NF_INET_LOCAL_OUT),
+    .table      = "mangle",
+    .hooks      =   (1 << NF_INET_PRE_ROUTING) |
+                    (1 << NF_INET_FORWARD) |
+                    (1 << NF_INET_LOCAL_OUT) |
+                    (1 << NF_INET_POST_ROUTING),
     .checkentry = truncate_tg_check,
     .me         = THIS_MODULE,
 };
