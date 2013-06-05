@@ -39,7 +39,7 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samuel Tan <samueltan@gmail.com>");
-MODULE_DESCRIPTION("Xtables: packet \"truncation\" target for IPv4");
+MODULE_DESCRIPTION("Xtables: packet truncation target for IPv4");
 
 
 static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate */
@@ -245,7 +245,6 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     udph->check = 0; // UDP Checksum optional for IPv4
     udph->len = htons(new_len - (iph->ihl << 2));
 
-    printk("truncate_UDP: Exiting...\n");
     return XT_CONTINUE;
 }
 
