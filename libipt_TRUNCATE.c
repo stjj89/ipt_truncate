@@ -14,6 +14,7 @@
 #include <linux/netfilter_ipv4/ipt_TRUNCATE.h>
 #include <linux/version.h>
 
+#define AT_BYTE_SET  (1 << 1)
 
 static void TRUNCATE_help(void)
 {
@@ -64,6 +65,7 @@ static int TRUNCATE_parse(int c, char **argv, int invert, unsigned int *flags,
             xtables_error(PARAMETER_PROBLEM,
                    "Argument passed to --at_byte cannot be negative");
         truncate->at_byte = val;
+        *flags |= AT_BYTE_SET;
         return 1;
         
     case '2':
@@ -100,6 +102,14 @@ static void TRUNCATE_save(const void *ip, const struct xt_entry_target *target)
         printf("--drop-tcp-opts ");
 }
 
+static void TRUNCATE_check(unsigned int flags)
+{
+    if ( !(flags & AT_BYTE_SET) ) {
+        xtables_error(PARAMETER_PROBLEM,
+            "must set --at-byte option for TRUNCATE target module");
+    }
+}
+
 static struct xtables_target truncate_tg_reg = {
     .name               = "TRUNCATE",
     .version            = XTABLES_VERSION,
@@ -112,6 +122,7 @@ static struct xtables_target truncate_tg_reg = {
     .print              = TRUNCATE_print,
     .save               = TRUNCATE_save,
     .extra_opts         = TRUNCATE_opts,
+    .final_check        = TRUNCATE_check,
 };
 
 void _init(void)

@@ -5,9 +5,15 @@ TRUNCATE target module for iptables
 
 -- To compile --
 Type "sudo make" then "sudo make install"
-(Note: xtables module must already be loaded)
 
 -- To run --
-Type "iptables -A $CHAIN -j TRUNCATE --at-byte=$NUM [--drop-tcp-opts]",
-where $CHAIN is either OUTPUT or FORWARD, and $NUM is the number of bytes
-to keep (compulsary argument)
+Type "iptables -t mangle -A $CHAIN -j TRUNCATE --at-byte=$NUM [--drop-tcp-opts]",
+where $CHAIN is OUTPUT, FORWARD, POSTROUTING or PREROUTING, and $NUM is the 
+number of bytes to keep. 
+
+The --at-byte argument must be specified, while the --drop-tcp-opts option is 
+optional (optional TCP options after the first 20 bytes of the TCP header are
+kept by default).
+
+-- To clean --
+Type "sudo make clean"

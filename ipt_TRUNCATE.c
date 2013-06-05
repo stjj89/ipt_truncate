@@ -329,20 +329,6 @@ truncate_tg(struct sk_buff *skb, const struct xt_target_param *par)
         return truncate_other(skb, par->hooknum, truncate->at_byte);    
 }
 
-/* Kernel-side sanity check on input passed by iptables */
-static bool truncate_tg_check(const struct xt_tgchk_param *par)
-{
-    const struct ipt_truncate_info *truncate_info = par->targinfo;
-    //const struct ipt_entry *e = par->entryinfo;
-
-    // TODO: Use a more principled method to require user option for at-byte
-    if (truncate_info->at_byte < 0) {
-        //printk("ipt_TRUNCATE: at-byte option must be passed!\n");
-        return false;
-    }
-    return true;
-}
-
 static struct xt_target truncate_tg_reg __read_mostly = {
     .name       = "TRUNCATE",
     .family     = NFPROTO_IPV4,
@@ -353,7 +339,6 @@ static struct xt_target truncate_tg_reg __read_mostly = {
                     (1 << NF_INET_FORWARD) |
                     (1 << NF_INET_LOCAL_OUT) |
                     (1 << NF_INET_POST_ROUTING),
-    .checkentry = truncate_tg_check,
     .me         = THIS_MODULE,
 };
 
