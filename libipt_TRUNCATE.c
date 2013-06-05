@@ -53,10 +53,10 @@ static int TRUNCATE_parse(int c, char **argv, int invert, unsigned int *flags,
     case '1':
         if (!xtables_strtoui(optarg, NULL, &val, 0, UINT32_MAX))
             xtables_error(PARAMETER_PROBLEM,
-                   "cannot parse --truncate-size `%s'", optarg);
+                   "cannot parse --at-byte `%s'", optarg);
         if (val < 0)
             xtables_error(PARAMETER_PROBLEM,
-                   "Argument passed to --at_byte cannot be negative");
+                   "Argument passed to --at-byte cannot be negative");
         truncate->at_byte = val;
         *flags |= AT_BYTE_SET;
         return 1;
