@@ -3,7 +3,7 @@
  * forwarded packets.
  */
 
-/* Written by Samuel Tan
+/* Written by Samuel Tan <samueltan@gmail.com>
  * Adopted from ipt_REJECT by:
  *  (C) 1999-2001 Paul `Rusty' Russell
  *  (C) 2002-2004 Netfilter Core Team <coreteam@netfilter.org>

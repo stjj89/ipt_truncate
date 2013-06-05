@@ -2,7 +2,7 @@
  * Shared library add-on to iptables to add customized TRUNCATE
  * target module support.
  *
- * Written by Samuel Tan
+ * Written by Samuel Tan <samueltan@gmail.com>
  * Adopted from libipt_REJECT.c by: 
  *  (C) 2000 Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>
  */
