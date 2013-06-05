@@ -1,5 +1,5 @@
 /*
- * Target module which is used to truncate outgoing and
+ * Target module which is used to duplicate outgoing and
  * forwarded packets.
  */
 
@@ -42,12 +42,12 @@ MODULE_AUTHOR("Samuel Tan <samueltan@gmail.com>");
 MODULE_DESCRIPTION("Xtables: packet \"truncation\" target for IPv4");
 
 
-static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate */
+static unsigned int duplicate_TCP(struct sk_buff *skb,       /* skb to duplicate */
                                 int hook,                   /* hook number */
-                                int num_bytes,              /* # bytes to truncate */
+                                int num_bytes,              /* # bytes to duplicate */
                                 int drop_tcp_opts)          /* boolean flag to drop TCP options */
 {
-    //printk("truncate_TCP: Entering...\n");
+    //printk("duplicate_TCP: Entering...\n");
     struct iphdr *iph;
     struct tcphdr _tcph, *tcph;
     unsigned char* tcp_opts;        /* pointer to TCP options */
@@ -69,7 +69,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
         return NF_DROP;   
     }
 
-    /* Drop TCP options, truncate user data only */
+    /* Drop TCP options, duplicate user data only */
     if (drop_tcp_opts)
     {
         // Calculate new total packet length (in bytes) after truncation
@@ -105,7 +105,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
          * all and send packet on its way */
         if (num_bytes >= (skb->len - (iph->ihl << 2) - sizeof(struct tcphdr)))
         {
-            //printk("truncate_TCP: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
+            //printk("duplicate_TCP: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
             return XT_CONTINUE;
         }
 
@@ -127,13 +127,13 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
             {
                 // OPT = End of options list
                 if ((*curr_opt ^ 0x00) == 0) {
-                    //printk("truncate_TCP: option 0 (END) detected\n");
+                    //printk("duplicate_TCP: option 0 (END) detected\n");
                     break;
                 }
                 // OPT = NOP
                 else if ((*curr_opt ^ 0x01) == 0)
                 {
-                    //printk("truncate_TCP: option 1 (NOP) detected\n");
+                    //printk("duplicate_TCP: option 1 (NOP) detected\n");
                     curr_opt++;
                     last_opt = curr_opt;
                     bytes_left--;
@@ -144,14 +144,14 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
                             ((*curr_opt ^ 0x04) == 0) ||    /* Selective ACK ok */
                             ((*curr_opt ^ 0x08) == 0) )     /* Timestamp */
                 {
-                    //printk("truncate_TCP: other option (0x%x, len = 0x%x) detected\n", *curr_opt, *(curr_opt + 1));
+                    //printk("duplicate_TCP: other option (0x%x, len = 0x%x) detected\n", *curr_opt, *(curr_opt + 1));
                     curr_opt++;
                     bytes_left--;
                     opt_len = (uint8_t) *curr_opt; // potential casting problem (CHECK ABOVE TOO)
                     
                     // Cannot keep this option
                     if (bytes_left < (opt_len - 1)) {
-                        //printk("truncate_TCP: cannot keep last option (0x%x)\n", *(curr_opt - 1));
+                        //printk("duplicate_TCP: cannot keep last option (0x%x)\n", *(curr_opt - 1));
                         break;
                     }
                     // Proceed to next option
@@ -169,7 +169,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
                 // Unreocnigzed kind (should not happen)
                 else
                 {
-                    //printk("truncate_TCP: Invalid TCP Option detected\n");
+                    //printk("duplicate_TCP: Invalid TCP Option detected\n");
                     return NF_DROP;
                 }
             }
@@ -192,7 +192,7 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
 
         /* The number of bytes we want to keep exceeds the length of the
          * optional TCP options, but is less than the total length of 
-         * optional TCP options and user data combined, so we truncate user data only
+         * optional TCP options and user data combined, so we duplicate user data only
          */
         else
         {
@@ -234,15 +234,15 @@ static unsigned int truncate_TCP(struct sk_buff *skb,       /* skb to truncate *
     // WireShark. Why?
     skb->ip_summed = CHECKSUM_NONE;
     //printk("skb->ip_summed = 0x%x\n", skb->ip_summed);
-    //printk("truncate_TCP: Exiting...\n");
+    //printk("duplicate_TCP: Exiting...\n");
     return XT_CONTINUE;
 }
 
-static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate */
+static unsigned int duplicate_UDP(struct sk_buff *skb,       /* skb to duplicate */
                                 int hook,                   /* hook number */
-                                int num_bytes)              /* # bytes to truncate */
+                                int num_bytes)              /* # bytes to duplicate */
 {
-    printk("truncate_UDP: Entering...\n");
+    printk("duplicate_UDP: Entering...\n");
     struct iphdr *iph;
     struct udphdr _udph, *udph;
     unsigned int new_len;                    /* new total packet length in bytes */
@@ -259,10 +259,10 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     /* Calculate new skb->len */
     // Less user data than we want to keep, so keep all and send packet on its way
     if ( (skb->len - (iph->ihl << 2) - sizeof(struct udphdr)) <= num_bytes ) {
-        //printk("truncate_UDP: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
+        //printk("duplicate_UDP: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
         return XT_CONTINUE;
     }
-    // More data than we want to keep, so truncate from after
+    // More data than we want to keep, so duplicate from after
     // udp header
     else
         new_len = (iph->ihl << 2) + sizeof(struct udphdr) + num_bytes;
@@ -278,15 +278,15 @@ static unsigned int truncate_UDP(struct sk_buff *skb,       /* skb to truncate *
     udph->check = 0; // UDP Checksum optional for IPv4
     udph->len = htons(new_len - (iph->ihl << 2));
 
-    printk("truncate_UDP: Exiting...\n");
+    printk("duplicate_UDP: Exiting...\n");
     return XT_CONTINUE;
 }
 
-static unsigned int truncate_other(struct sk_buff *skb,         /* skb to truncate */
+static unsigned int duplicate_other(struct sk_buff *skb,         /* skb to duplicate */
                                     int hook,                   /* hook number */
-                                    int num_bytes)              /* # bytes to truncate */
+                                    int num_bytes)              /* # bytes to duplicate */
 {
-    //printk("truncate_other: Entering...\n");
+    //printk("duplicate_other: Entering...\n");
     struct iphdr *iph;
     unsigned int new_len;                    /* new total packet length in bytes */
 
@@ -295,10 +295,10 @@ static unsigned int truncate_other(struct sk_buff *skb,         /* skb to trunca
     /* Calculate new skb->len */
     // Less data after iphdr than we want to keep, so keep all and send packet on its way
     if ( (skb->len - (iph->ihl << 2)) < num_bytes ) {
-        //printk("truncate_other: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
+        //printk("duplicate_other: Less data than num_bytes = %d, so no truncatation performed\n", num_bytes);
         return XT_CONTINUE;
     } 
-    // More data than we want to keep, so truncate from after
+    // More data than we want to keep, so duplicate from after
     // ip header
     else
         new_len = (iph->ihl << 2) + num_bytes;
@@ -310,30 +310,30 @@ static unsigned int truncate_other(struct sk_buff *skb,         /* skb to trunca
     iph->tot_len   = htons(new_len);     
     ip_send_check(iph);
  
-    //printk("truncate_other: Exiting...\n");
+    //printk("duplicate_other: Exiting...\n");
     return XT_CONTINUE;
 }
 
 static unsigned int
-truncate_tg(struct sk_buff *skb, const struct xt_target_param *par)
+duplicate_tg(struct sk_buff *skb, const struct xt_target_param *par)
 {
     struct iphdr *iph = ip_hdr(skb);
-    //printk("truncate_tg: Entering with iph->protocol = %x\n", iph->protocol);
-    const struct ipt_truncate_info *truncate = par->targinfo;
+    //printk("duplicate_tg: Entering with iph->protocol = %x\n", iph->protocol);
+    const struct ipt_duplicate_info *duplicate = par->targinfo;
 
     if (IPPROTO_TCP == iph->protocol)
-        return truncate_TCP(skb, par->hooknum, truncate->at_byte, truncate->drop_tcp_opts);
+        return duplicate_TCP(skb, par->hooknum, duplicate->at_byte, duplicate->drop_tcp_opts);
     else if (IPPROTO_UDP == iph->protocol)
-        return truncate_UDP(skb, par->hooknum, truncate->at_byte);
+        return duplicate_UDP(skb, par->hooknum, duplicate->at_byte);
     else
-        return truncate_other(skb, par->hooknum, truncate->at_byte);    
+        return duplicate_other(skb, par->hooknum, duplicate->at_byte);    
 }
 
-static struct xt_target truncate_tg_reg __read_mostly = {
-    .name       = "TRUNCATE",
+static struct xt_target duplicate_tg_reg __read_mostly = {
+    .name       = "DUPLICATE",
     .family     = NFPROTO_IPV4,
-    .target     = truncate_tg,
-    .targetsize = sizeof(struct ipt_truncate_info),
+    .target     = duplicate_tg,
+    .targetsize = sizeof(struct ipt_duplicate_info),
     .table      = "mangle",
     .hooks      =   (1 << NF_INET_PRE_ROUTING) |
                     (1 << NF_INET_FORWARD) |
@@ -342,15 +342,15 @@ static struct xt_target truncate_tg_reg __read_mostly = {
     .me         = THIS_MODULE,
 };
 
-static int __init truncate_tg_init(void)
+static int __init duplicate_tg_init(void)
 {
-    return xt_register_target(&truncate_tg_reg);
+    return xt_register_target(&duplicate_tg_reg);
 }
 
-static void __exit truncate_tg_exit(void)
+static void __exit duplicate_tg_exit(void)
 {
-    xt_unregister_target(&truncate_tg_reg);
+    xt_unregister_target(&duplicate_tg_reg);
 }
 
-module_init(truncate_tg_init);
-module_exit(truncate_tg_exit);
+module_init(duplicate_tg_init);
+module_exit(duplicate_tg_exit);
