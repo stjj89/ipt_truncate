@@ -2,7 +2,8 @@ MODULES_DIR := /lib/modules/$(shell uname -r)
 KERNEL_DIR := ${MODULES_DIR}/build
 obj-m += ipt_TRUNCATE.o
 
-all:
+all: ipt_TRUNCATE.h ipt_TRUNCATE.c
+	cp ./ipt_TRUNCATE.h /usr/include/linux/netfilter_ipv4/
 	make -C ${KERNEL_DIR} M=$$PWD;
 	make libipt_TRUNCATE.so
 install: libipt_TRUNCATE.so ipt_TRUNCATE.ko
