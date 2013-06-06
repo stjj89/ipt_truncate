@@ -12,7 +12,7 @@ install: libipt_TRUNCATE.so ipt_TRUNCATE.ko
 	ln -s `pwd`/ipt_TRUNCATE.ko /lib/modules/`uname -r`
 	depmod -a
 	modprobe ipt_TRUNCATE
-#	insmod ./ipt_TRUNCATE.ko
+	rm -rf /lib/modules/`uname -r`/ipt_TRUNCATE.ko
 modules:
 	make -C ${KERNEL_DIR} M=$$PWD $@;
 modules_install:
