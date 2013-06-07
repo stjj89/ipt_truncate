@@ -3,8 +3,11 @@ ipt_truncate
 
 TRUNCATE target module for iptables
 
--- To compile --
+-- To compile and install module --
 Type "sudo make" then "sudo make install"
+
+-- To uninstall module --
+Type "sudo make uninstall"
 
 -- To run --
 Type "iptables -t mangle -A $CHAIN -j TRUNCATE --at-byte=$NUM [--drop-tcp-opts]",
